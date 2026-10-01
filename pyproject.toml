@@ -1,0 +1,57 @@
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project]
+name = "jazzure"
+dynamic = ["version"]
+description = "Perform Azure recon"
+keywords = ["Azure", "Microsoft", "cloud", "recon"]
+readme = "README.md"
+authors = [
+    {name = "pasdoue",email = "pasdoue@protonmail.com"},
+]
+maintainers = [
+    {name = "pasdoue", email = "pasdoue@protonmail.com"}
+]
+license-files = ["LICENSE.md"]
+
+requires-python = ">= 3.10"
+dependencies = [
+    "R2Log~=1.0.2",
+    "requests~=2.34.2",
+    "bs4~=0.0.2",
+    "jinja2~=3.1.6",
+    "strip_ansi~=0.1.1",
+]
+version = "0.1.0"
+license = {text = "Jazzure"}
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+]
+
+[project.scripts]
+jazzure = "jazzure.main:main"
+
+[project.urls]
+Documentation = "https://github.com/pasdoue/Jazzure/blob/main/README.md"
+Repository = "https://github.com/pasdoue/Jazzure"
+Issues = "https://github.com/pasdoue/Jazzure/issues"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.version]
+source = "file"
+path = "jazzure/config/ToolConfig.py"
+
+[tool.pdm.build]
+excludes = ["tests"]
