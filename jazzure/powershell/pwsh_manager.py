@@ -1,5 +1,8 @@
+import subprocess
+import threading
+import uuid
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 
 from R2Log import logger
 import docker
@@ -24,11 +27,15 @@ class PowerShellContainer:
             - AADInternals-Endpoints
             - Microsoft.Entra
             - Microsoft.Graph
+            It manages a persistent powershell session to be able to import modules and use them later ;) (also saving context between runs)
         """
-        self.client = None
-        self.image = None
-        self.container = None
+        self.client: Optional[DockerClient] = None
+        self.image: Optional[Image] = None
+        self.container: Optional[Container] = None
         self._docker_runtime_name = f"{self.DOCKER_IMAGE_NAME}-runtime"
+        # Persistent PowerShell process. Allow to chains commands without losing imported modules or context
+        self._powershell_process = None
+
         if not binary_installed(binary_name="docker"):
             logger.warning(f"To use powershell feature, please install docker")
             return
@@ -42,6 +49,7 @@ class PowerShellContainer:
             if self.image is None:
                 raise RuntimeError(f"Unable to build docker image")
         self.container = self._create_container()
+        self._start_persistent_powershell()
 
     @staticmethod
     def _create_docker_client() -> Union[None|DockerClient]:
@@ -111,7 +119,7 @@ class PowerShellContainer:
         try:
             container = self.client.containers.run(
                 image=f"{self.DOCKER_IMAGE_NAME}:{self.DOCKER_TAG}",
-                command=[ "pwsh", "-NoLogo", "-NoProfile", "-Command", "while ($true) { Start-Sleep -Seconds 3600 }" ],
+                command=["sleep", "infinity"],
                 name=self._docker_runtime_name,
                 detach=True,
                 remove=False,
@@ -122,37 +130,109 @@ class PowerShellContainer:
             logger.error(f"Unable to start PowerShell container:\n{e}")
             raise
 
-    def run(self, command: str, env_vars: Union[None|dict] = None) -> str:
+    def _start_persistent_powershell(self) -> None:
+        """
+            Start one persistent PowerShell process inside the container.
+            This process remains alive for the entire lifetime of the PowerShellContainer object.
+        """
+        if self.container is None:
+            raise RuntimeError("Docker container has not been created")
+
+        self.container.reload()
+        if self.container.status != "running":
+            raise RuntimeError(f"Container is not running: {self.container.status}")
+
+        logger.info("Starting persistent PowerShell process")
+        self._powershell_process = subprocess.Popen(
+            [ "docker", "exec", "-i", self.container.id, "pwsh", "-NoLogo", "-NoProfile", "-Command", "-" ],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0
+        )
+        if self._powershell_process.stdin is None:
+            raise RuntimeError("Unable to open PowerShell stdin")
+        if self._powershell_process.stdout is None:
+            raise RuntimeError("Unable to open PowerShell stdout")
+        logger.success("Persistent PowerShell session started")
+
+    def run(self, command: str, env_vars: Optional[dict] = None, timeout: float = 60.0) -> str:
         """
             Execute a PowerShell command inside the running container.
         """
-        if not command:
+        if not command or not command.strip():
             raise ValueError("PowerShell command cannot be empty")
 
-        # Refresh container state from Docker.
-        self.container.reload()
-        if self.container.status != "running":
-            raise RuntimeError(f"PowerShell container is not running (status: {self.container.status})")
+        process = self._powershell_process
+        if process is None:
+            raise RuntimeError("PowerShell session is not running")
+        if process.poll() is not None:
+            raise RuntimeError("PowerShell process has terminated")
+
+        marker = (f"__JAZZURE_COMMAND_END_{uuid.uuid4().hex}__")
 
         logger.debug(f"Executing PowerShell command:\n{command}")
+        # Optional environment variables
+        env_commands = ""
+        if env_vars:
+            for key, value in env_vars.items():
+                value = str(value).replace("'", "''")
+                env_commands += (f"$env:{key} = '{value}'\n")
 
+        payload = (
+                env_commands
+                + command
+                + "\n"
+                + f"Write-Output '{marker}'"
+                + "\n"
+        )
         try:
-            if env_vars is not None:
-                result = self.container.exec_run( [ "pwsh", "-NoLogo", "-NoProfile", "-Command", command ], environment=env_vars )
-            else:
-                result = self.container.exec_run(["pwsh", "-NoLogo", "-NoProfile", "-Command", command])
-        except docker.errors.APIError as e:
-            raise RuntimeError(f"Unable to execute PowerShell command in container:\n{e}") from e
+            process.stdin.write(payload.encode("utf-8"))
+            process.stdin.flush()
+        except (BrokenPipeError, OSError) as e:
+            raise RuntimeError("Lost connection to PowerShell process") from e
 
-        output = result.output.decode("utf-8", errors="replace")
-        if result.exit_code != 0:
-            logger.error(f"PowerShell command failed ({result.exit_code}):\n{output}")
-        return output
+        # Read output until marker
+        output = bytearray()
+        def read_output() -> None:
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                output.extend(line)
+                if marker.encode("utf-8") in line:
+                    break
 
-    def stop(self):
+        reader = threading.Thread(target=read_output, daemon=True)
+        reader.start()
+        reader.join(timeout)
+        if reader.is_alive():
+            logger.error(f"PowerShell command timed out after {timeout} seconds")
+        decoded = output.decode("utf-8", errors="replace",)
+        # Remove marker
+        marker_position = decoded.find(marker)
+        if marker_position != -1:
+            decoded = decoded[:marker_position]
+        return decoded
+
+    def stop(self) -> None:
         """
-            Stop and remove the PowerShell container.
+            Remove powershell persistent connector & ttop container
         """
+        # Stop persistent PowerShell process
+        if self._powershell_process is not None:
+            logger.info("Stopping persistent PowerShell process")
+            try:
+                self._powershell_process.stdin.close()
+            except Exception:
+                pass
+            try:
+                self._powershell_process.terminate()
+                self._powershell_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._powershell_process.kill()
+                self._powershell_process.wait()
+            except Exception:
+                pass
+            self._powershell_process = None
+
         if self.container is None:
             return
         try:
@@ -175,6 +255,9 @@ class PowerShellContainer:
         """
         self.stop()
 
+    def __enter__(self):
+        return self
+
 
 if __name__ == "__main__":
 
@@ -182,14 +265,18 @@ if __name__ == "__main__":
 
     try:
         print(pwsh_container.run("Get-Date"))
-        print(pwsh_container.run("Get-Module -ListAvailable Az"))
+        #print(pwsh_container.run("Get-InstalledModule Az"))
+        print(pwsh_container.run("Import-Module -Name AADInternals"))
+        #print(pwsh_container.run("Import-Module -Name AADInternals-Endpoints"))
+        print(pwsh_container.run("Get-InstalledModule Microsoft.Entra"))
+        print(pwsh_container.run("Get-InstalledModule Microsoft.Graph"))
 
         # using python vars
         username = "john@example.com"
         command = f'''
-        $user = "{username}"
-        Write-Output "User: $user"
-        '''
+                $user = "{username}"
+                Write-Output "User: $user"
+                '''
         print(pwsh_container.run(command))
 
         # passing env vars
