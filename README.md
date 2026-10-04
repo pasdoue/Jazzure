@@ -1,11 +1,14 @@
 ## General
 
 This tool is built to facilitate Azure/Entra environment discovery.  
-The philosophy of the tool is same as Jaws : https://github.com/pasdoue/JAWS
+The philosophy of the tool is same as Jaws : https://github.com/pasdoue/JAWS  
+But due to complexity of Microsoft, this project is more complex to answer multiple problems and contains multiple submodules that works together.  
 
 ## Installation
 
 ### Pypi
+
+Perform git clone for now... I will release first package on Pypi when the tool will be "really" functional 😉  
 
 ```bash
 pipx install jazzure
@@ -19,8 +22,10 @@ git clone https://github.com/pasdoue/Jazzure.git
 python jazzure.py -h
 ```
 
-
 ## Technical details
+
+This tool is under heavy construction and documentation will follow.  
+Also as there are many things to handle, I decided to split documentation across modules/packages to avoid an unreadable README 🤪  
 
 ### Azure & Entra details
 
@@ -61,29 +66,15 @@ Please install the service specific packages prefixed by `azure` needed for your
 As the SDK is not suitable for performing introspection, I turned to azure CLI parsing.  
 Actually script take between 40min to 1h to parse all azure CLI options to generate JSON to be faster next times.
 
+#### Powershell handler
+
+As a lot of commands & Entra connections are well handled in PowerShell and not in python SDK or even Azure CLI, it was necessary to support PowerShell ecosystem.  
+More details over here : [PowerShell details](jazzure/powershell/README.md)  
 
 #### IMDS / Managed Identity
 
-When you're logged into a VM, you can interrogate IMDS on `http://169.254.169.254/metadata`.  
-The bottleneck is that there are several endpoints to retrieve metadata, and they depend on an `api-version` which are specific dates and updated sometimes.
-
-Bellow the summary, but for curious one's check every endpoint details here : https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#endpoint-categories 
-
-| Category root               | Description                                      | Version introduced |
-|-----------------------------|--------------------------------------------------|--------------------|
-| `/metadata/attested`        | Attested Data                                    | 2018-10-01         |
-| `/metadata/identity`        | Managed Identity via IMDS                        | 2018-02-01         |
-| `/metadata/instance`        | Instance Metadata                                | 2017-04-02         |
-| `/metadata/loadbalancer`    | Retrieve Load Balancer metadata via IMDS         | 2020-10-01         |
-| `/metadata/scheduledevents` | Scheduled Events via IMDS                        | 2017-08-01         |
-| `/metadata/versions`        | Versions                                         | N/A                |
-
-As IMDS cannot be interrogated from outside the VM, Jazzure has a code `imds/imds.py` which navigate through Microsoft doc and retrieve all api-versions for you.  
-Once done, it allows you to craft script to interrogate (by default) latest release version, but you can specify to target them all.
-
-TODO : Harder part is handling /identity
-
-
+This section is about when you're logged into a VM, so you can interrogate IMDS on `http://169.254.169.254/metadata`.    
+More details over here : [IMDS details](jazzure/imds/README.md)
 
 
 
