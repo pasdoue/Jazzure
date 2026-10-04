@@ -20,9 +20,10 @@ Bellow the summary, but for curious one's check every endpoint details here : ht
 | `/metadata/scheduledevents` | Scheduled Events via IMDS                        | 2017-08-01         |
 | `/metadata/versions`        | Versions                                         | N/A                |
 
-There are function developed inside `imds.py` that will retrieve for each endpoint all available "api-version" (except for `identity` because it's special one... again...)
+There are function developed inside `imds.py` that will retrieve for each endpoint all available "api-version" (except for `identity` because it's special one... again...)  
+Some tests are available in `tests/test_IMDS.py` to ensure Microsoft online doc does not changes to avoid `imds.py` failure when checking versions.   
 
-Little detail about thos endpoints :  
+Little detail about IMDS endpoints :  
 
 ### Attested
 

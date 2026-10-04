@@ -1,7 +1,7 @@
 ## General
 
 This tool is built to facilitate Azure/Entra environment discovery.  
-The philosophy of the tool is same as Jaws : https://github.com/pasdoue/JAWS  
+The philosophy of the tool is same as [Jawsome](https://github.com/pasdoue/Jawsome) (developped to brute force IAM permissions in AWS)    
 But due to complexity of Microsoft, this project is more complex to answer multiple problems and contains multiple submodules that works together.  
 
 ## Installation
@@ -48,23 +48,14 @@ As there are several ways to connect to those environments, here is a "little" s
 
 #### Python Microsoft SDK
 
-Contrary to AWS where there is only boto3 SDK for python, Microsoft changed its strategy and developed an SDK for each service...  
-Unfortunately all SDK are not compatible each others due to dependency problem...  
-So the idea of using them has been aborted and the code I did to test it also went to trash
-
-```
-The complete list of available packages can be found at:
-https://aka.ms/azsdk/python/all
-
-Kind of shit you will encounter as error message : 
-Starting with v0.37.0, the 'azure-storage' meta-package is deprecated and cannot be installed anymore.
-Please install the service specific packages prefixed by `azure` needed for your application.
-```
+This way of handling Microsoft features like I did for Jawsome was aborted, but left dead code as a reminder  
+More details here : [Python SDK details](jazzure/python_sdk/README.md)
 
 #### az CLI
 
 As the SDK is not suitable for performing introspection, I turned to azure CLI parsing.  
 Actually script take between 40min to 1h to parse all azure CLI options to generate JSON to be faster next times.
+More details here : [Azure CLI details](jazzure/az_cli/README.md)
 
 #### Powershell handler
 
