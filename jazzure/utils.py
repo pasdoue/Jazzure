@@ -4,6 +4,7 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import random
+import shutil
 
 from R2Log import logger
 from rich.emoji import Emoji
@@ -26,6 +27,12 @@ def print_banner() -> None:
     else:
         sys.stdout.write(random_choice)
 
+def binary_installed(binary_name: str) -> bool:
+    """
+        Simple minimalist code to check if a binary is installed
+    """
+    path = shutil.which(binary_name)
+    return True if path is not None else False
 
 def print_elapsed_time(start_time, format: str = "seconds") -> None:
     end = time.time()
