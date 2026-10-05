@@ -1,0 +1,70 @@
+$Attested_api_versions = @( {{ a_v }} )
+$Instance_api_versions = @( {{ i_v }} )
+$Loadbalancer_api_versions = @( {{ l_v }} )
+$Scheduled_api_versions = @( {{ s_v }} )
+
+function Test-ImdsEndpoint {
+    param (
+        [Parameter(Mandatory)]
+        [string]$Endpoint,
+
+        [Parameter(Mandatory)]
+        [string[]]$ApiVersions,
+
+        [int]$RetryDelaySeconds = 5
+    )
+
+    $headers = @{
+        Metadata = "true"
+    }
+
+    foreach ($api_version in $ApiVersions) {
+
+        $uri = "http://169.254.169.254${Endpoint}?api-version=$api_version"
+
+        Write-Host ""
+        Write-Host "========================================"
+        Write-Host "Endpoint     : $Endpoint"
+        Write-Host "API Version  : $api_version"
+        Write-Host "URI          : $uri"
+        Write-Host "========================================"
+
+        $retryCount = 0
+        while ($true) {
+            try {
+                $response = Invoke-RestMethod `
+                    -Headers $headers `
+                    -Method GET `
+                    -Uri $uri `
+                    -ErrorAction Stop
+
+                Write-Host "Status       : OK"
+                $response | ConvertTo-Json -Depth 20
+                break
+            } catch {
+                $statusCode = $null
+                if ($_.Exception.Response) {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                }
+                if ($statusCode -eq 429) {
+                    $retryCount++
+                    # 2, 4, 8, 16, 32, 60, 60...
+                    $delay = [math]::Min([math]::Pow(2, $retryCount), 60)
+
+                    Write-Warning "IMDS returned HTTP 429 (Too Many Requests)."
+                    Write-Warning "HTTP 429 - retry #$retryCount - waiting ${delay}s"
+                    Start-Sleep -Seconds $delay
+                    continue
+                }
+                # Every other error is considered as an error
+                Write-Error "IMDS request failed with HTTP status $statusCode : $($_.Exception.Message)"
+                break
+            }
+        }
+    }
+}
+
+Test-ImdsEndpoint -Endpoint "/metadata/attested/document" -ApiVersions $Attested_api_versions
+Test-ImdsEndpoint -Endpoint "/metadata/instance" -ApiVersions $Instance_api_versions
+Test-ImdsEndpoint -Endpoint "/metadata/loadbalancer" -ApiVersions $Loadbalancer_api_versions
+Test-ImdsEndpoint -Endpoint "/metadata/scheduledevents" -ApiVersions $Scheduled_api_versions

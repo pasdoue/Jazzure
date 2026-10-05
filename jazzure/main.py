@@ -9,6 +9,8 @@ from jazzure.az_cli.azcli import AzCLI, AzureCliCrawler
 from jazzure.config.ToolConfig import __version__
 from jazzure.utils import print_banner, set_logger, print_elapsed_time
 
+from jazzure.imds.imds import register_parser
+
 def parse_args() -> argparse.Namespace:
 
     pre_parser = argparse.ArgumentParser(add_help=False)
@@ -20,6 +22,10 @@ def parse_args() -> argparse.Namespace:
         print_banner()
 
     parser = argparse.ArgumentParser(description='Azure recon', parents=[pre_parser]) #little hack to print banner on help menu. Do not return str because if so, the rest of help message wont print...
+
+    subparsers = parser.add_subparsers(title="Imds subparser")
+    register_parser(subparsers)
+
     parser.add_argument('--log-file', action="store_true", help='Log inside file the current run')
     parser.add_argument("--version", action="store_true", help="Print tool version")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Verbosity level (-v for verbose, -vv for advanced, -vvv for debug)")
@@ -33,7 +39,11 @@ def entry_point():
         logger.info(f"Version : {__version__}")
         exit(0)
 
-    print(AzCLI.retrieve_online_versions())
+    # will load the 'correct' subpackage and run its 'run' logic
+    if hasattr(args, "func"):
+        args.func(args)
+
+    #print(AzCLI.retrieve_online_versions())
 
     # crawler = AzureCliCrawler()
     # start = time.time()

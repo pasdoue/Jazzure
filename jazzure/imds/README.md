@@ -3,6 +3,35 @@
 IMDS (Instance MetaData Service) is a REST API (`http://169.254.169.254/metadata`) that runs inside Azure VM (same mechanism on all cloud providers, at least AWS & GCP).  
 Those endpoints cannot be interrogated from outside the VM and prevent (normally) SSRF attacks.   
 
+# Running options
+
+Retrieve all available versions for all IMDS endpoints (except for /identity)
+```bash
+python jazzure.py imds --get-endpoints-versions
+[*] Collecting all IMDS endpoints versions
+[+] All versions retrieved
+[*] Available versions for attested : ['2018-20-01', '2018-10-01', '2019-04-30', '2019-11-01', '2020-09-01']
+[*] Available versions for instance : ['2017-04-02', '2017-08-01', '2017-12-01', '2018-04-02', '2018-10-01', '2019-02-01', '2019-03-11', '2019-06-01', '2019-06-04', '2020-06-01', '2020-07-15', '2020-09-01', '2020-10-01',        
+'2020-12-01', '2021-01-01', '2021-03-01', '2021-10-01', '2021-11-01', '2021-11-15', '2021-12-13', '2023-11-15']
+[*] Available versions for loadbalancer : ['2020-10-01']
+[*] Available versions for scheduled_events : ['2017-03-01', '2017-08-01', '2017-11-01', '2019-01-01', '2019-04-01', '2019-08-01', '2020-07-01'] 
+```
+
+Generate a powershell script to retrieve all IMDS data
+```bash
+python jazzure.py imds --gen-script --vm-os windows
+[*] Collecting all IMDS endpoints versions
+[+] All versions retrieved
+[*] You will be prompted to chose a version for all IMDS endpoints. 'all' & 'latest' are accepted too
+Attested version to use [2018-20-01/2018-10-01/2019-04-30/2019-11-01/2020-09-01/all/latest]: latest
+Instance version to use 
+[2017-04-02/2017-08-01/2017-12-01/2018-04-02/2018-10-01/2019-02-01/2019-03-11/2019-06-01/2019-06-04/2020-06-01/2020-07-15/2020-09-01/2020-10-01/2020-12-01/2021-01-01/2021-03-01/2021-10-01/2021-11-01/2021-11-15/2021-12-13/2023-11
+-15/all/latest]: latest
+Loadbalancer version to use [2020-10-01/all/latest]: latest
+Scheduled events version to use [2017-03-01/2017-08-01/2017-11-01/2019-01-01/2019-04-01/2019-08-01/2020-07-01/all/latest]: latest
+[+] Template generated here : /Jazzure/jazzure/imds/powershell.ps1
+```
+
 # Technical information
 
 ## Api-version
