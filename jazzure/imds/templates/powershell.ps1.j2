@@ -7,19 +7,13 @@ function Test-ImdsEndpoint {
     param (
         [Parameter(Mandatory)]
         [string]$Endpoint,
-
         [Parameter(Mandatory)]
-        [string[]]$ApiVersions,
-
-        [int]$RetryDelaySeconds = 5
+        [string[]]$ApiVersions
     )
 
-    $headers = @{
-        Metadata = "true"
-    }
+    $headers = @{ Metadata = "true" }
 
     foreach ($api_version in $ApiVersions) {
-
         $uri = "http://169.254.169.254${Endpoint}?api-version=$api_version"
 
         Write-Host ""
@@ -32,11 +26,7 @@ function Test-ImdsEndpoint {
         $retryCount = 0
         while ($true) {
             try {
-                $response = Invoke-RestMethod `
-                    -Headers $headers `
-                    -Method GET `
-                    -Uri $uri `
-                    -ErrorAction Stop
+                $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri -ErrorAction Stop
 
                 Write-Host "Status       : OK"
                 $response | ConvertTo-Json -Depth 20
@@ -46,12 +36,12 @@ function Test-ImdsEndpoint {
                 if ($_.Exception.Response) {
                     $statusCode = [int]$_.Exception.Response.StatusCode
                 }
+                # Sometimes IMDS return HTTP 429 (Too Many Requests) when interrogated too fast, so handle this with a delay/retry mechanism
                 if ($statusCode -eq 429) {
                     $retryCount++
-                    # 2, 4, 8, 16, 32, 60, 60...
+                    # calculated delay : 2, 4, 8, 16, 32, 60, 60...
                     $delay = [math]::Min([math]::Pow(2, $retryCount), 60)
 
-                    Write-Warning "IMDS returned HTTP 429 (Too Many Requests)."
                     Write-Warning "HTTP 429 - retry #$retryCount - waiting ${delay}s"
                     Start-Sleep -Seconds $delay
                     continue

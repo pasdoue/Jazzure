@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from jinja2 import Environment, FileSystemLoader
 from R2Log import logger
+from rich.emoji import Emoji
 from rich.prompt import Prompt
 
 """
@@ -39,14 +40,15 @@ cat signature | base64 -d | strings | head -n1
 """
 from typing import List, Tuple
 
+# folder containing Jinja template that will allow to build a single script to interrogate IMDS endpoints
 TEMPLATE_FOLDER = Path(__file__).parent / "templates"
 
 
 class IMDS:
 
+    # List of all documented endpoints for IMDS
     SERVER_BASE_URL = "http://169.254.169.254"
     ROOT_URL = "/metadata"
-
     ATTESTED_URL = "/attested" # introduced 2018-10-01
     IDENTITY_URL = "/identity" # introduced 2018-02-01
     INSTANCE_URL = "/instance" # introduced 2017-04-02
@@ -54,21 +56,18 @@ class IMDS:
     SCHEDULEDEVENTS_URL = "/scheduledevents" # introduced 2017-08-01
     VERSIONS_URL = "/versions"
 
-    ONLINE_DATE_STR_FORMAT = "%Y-%d-%m"
-
-    AVAILABLE_OS = ["windows", "linux"]
+    AVAILABLE_OS = ["windows", "linux"] # most of VM are windows but linux also exists
 
     def __int__(self):
         pass
 
-    """
-        Parse online endpoint versions as they are documented only online...
-        For better fun, Microsoft introduced both date format "%Y-%d-%m" and "%Y-%m-%d" but the most encountered is "%Y-%d-%m"
-        F*** Microcro
-    """
-
     @staticmethod
-    def parse_date(date_string):
+    def _parse_date(date_string):
+        """
+            Parse online endpoint versions as they are documented only online...
+            For better fun, Microsoft introduced both date format "%Y-%d-%m" and "%Y-%m-%d" but the most encountered is "%Y-%d-%m"
+            F*** Microcro
+        """
         formats = ["%Y-%m-%d","%Y-%d-%m"]
         for fmt in formats:
             try:
@@ -79,8 +78,11 @@ class IMDS:
         return None
 
     @staticmethod
-    def sort_key(date_string):
-        parsed = IMDS.parse_date(date_string)
+    def sort_dates(date_string):
+        """
+            Allow to sort all api-versions dates documented for IMDS endpoints
+        """
+        parsed = IMDS._parse_date(date_string)
         if parsed is None:
             # Put invalid dates at the end
             return datetime.max
@@ -109,7 +111,7 @@ class IMDS:
         else:
             logger.error(f"Impossible to find array of version on online doc")
         versions = list(set(versions))
-        return sorted(versions, key=IMDS.sort_key)
+        return sorted(versions, key=IMDS.sort_dates)
 
     @staticmethod
     def parse_online_doc_scheduled_events_versions() -> List[str]:
@@ -134,7 +136,7 @@ class IMDS:
         else:
             logger.error(f"Impossible to find array of version on online doc")
         versions = list(set(versions))
-        return sorted(versions, key=IMDS.sort_key)
+        return sorted(versions, key=IMDS.sort_dates)
 
     @staticmethod
     def parse_online_doc_instance_versions() -> List[str]:
@@ -159,7 +161,7 @@ class IMDS:
         else:
             logger.error(f"Impossible to find array of version on online doc")
         versions = list(set(versions))
-        return sorted(versions, key=IMDS.sort_key)
+        return sorted(versions, key=IMDS.sort_dates)
 
     @staticmethod
     def parse_online_doc_attested_data_versions() -> List[str]:
@@ -184,7 +186,7 @@ class IMDS:
         else:
             logger.error(f"Impossible to find array of version on online doc")
         versions = list(set(versions))
-        return sorted(versions, key=IMDS.sort_key)
+        return sorted(versions, key=IMDS.sort_dates)
 
     #TODO : code online date check for identity (need to find it first :/ )
 
@@ -207,6 +209,19 @@ class IMDS:
         logger.info(f"Available versions for scheduled_events : {s}")
 
     @staticmethod
+    def _chose_version(user_choice: str, choices: List[str]) -> str:
+        """
+            Will return a string containing all user IMDS version
+        """
+        if user_choice == "latest":
+            res = [choices[-1]]
+        elif user_choice == "all":
+            res = choices
+        else:
+            res = [user_choice]
+        return ", ".join(f"'{version}'" for version in res)
+
+    @staticmethod
     def generate_script(vm_os: str) -> None:
         if not vm_os.lower() in IMDS.AVAILABLE_OS:
             raise ValueError(f"Invalid OS : {vm_os}. Please chose between those ones : {','.join(IMDS.AVAILABLE_OS)}")
@@ -215,6 +230,7 @@ class IMDS:
 
         template_filename = "powershell.ps1"
         if vm_os == "linux":
+            logger.warning(f"Linux curl script is developed but not tested. Please report any wrong behaviour {Emoji('pray')}")
             template_filename = "curl.sh"
 
         #select versions for all endpoints
@@ -225,35 +241,10 @@ class IMDS:
         l_v = Prompt.ask(prompt="Loadbalancer version to use", choices=l + ["all", "latest"], show_choices=True)
         s_v = Prompt.ask(prompt="Scheduled events version to use", choices=s + ["all", "latest"], show_choices=True)
 
-        if a_v == "latest":
-            a_v = [a[-1]]
-        elif a_v == "all":
-            a_v = a
-        else:
-            a_v = [a_v]
-        if i_v == "latest":
-            i_v = [i[-1]]
-        elif i_v == "all":
-            i_v = i
-        else:
-            i_v = [i_v]
-        if l_v == "latest":
-            l_v = [l[-1]]
-        elif l_v == "all":
-            l_v = l
-        else:
-            l_v = [l_v]
-        if s_v == "latest":
-            s_v = [s[-1]]
-        elif s_v == "all":
-            s_v = s
-        else:
-            s_v = [s_v]
-
-        a_versions = ", ".join(f"'{version}'" for version in a_v)
-        i_versions = ", ".join(f"'{version}'" for version in i_v)
-        l_versions = ", ".join(f"'{version}'" for version in l_v)
-        s_versions = ", ".join(f"'{version}'" for version in s_v)
+        a_versions = IMDS._chose_version(user_choice=a_v, choices=a)
+        i_versions = IMDS._chose_version(user_choice=i_v, choices=i)
+        l_versions = IMDS._chose_version(user_choice=l_v, choices=l)
+        s_versions = IMDS._chose_version(user_choice=s_v, choices=s)
         template = env.get_template(f"{template_filename}.j2")
         output = template.render(a_v=a_versions, i_v=i_versions, l_v=l_versions, s_v=s_versions)
 
@@ -263,6 +254,9 @@ class IMDS:
 
 
 def run(args):
+    """
+        Main entrance of the current package. Allow to have its own logic to run from main
+    """
     if args.gen_script:
         IMDS.generate_script(vm_os=args.vm_os)
     elif args.get_endpoints_versions:

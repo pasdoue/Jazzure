@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -u
+
+ATTESTED_API_VERSIONS=( {{ a_v }} )
+INSTANCE_API_VERSIONS=( {{ i_v }} )
+LOADBALANCER_API_VERSIONS=( {{ l_v }} )
+SCHEDULED_API_VERSIONS=( {{ s_v }} )
+
+IMDS_BASE_URL="http://169.254.169.254"
+
+function test_imds_endpoint() {
+    local endpoint="$1"
+    shift
+    retry_count=0
+
+    for api_version in "$@"; do
+        uri="${IMDS_BASE_URL}${endpoint}?api-version=${api_version}"
+
+        echo ""
+        echo "========================================"
+        echo "Endpoint     : ${endpoint}"
+        echo "API Version  : ${api_version}"
+        echo "URI          : ${uri}"
+        echo "========================================"
+
+        while true; do
+            # Capture the HTTP status code separately from the response body.
+            response=$(curl --silent --show-error --noproxy '*' --header "Metadata: true" --write-out $'\n%{http_code}' "$uri")
+            curl_exit_code=$?
+            # Extract the HTTP status code and response body.
+            status_code="${response##*$'\n'}"
+            body="${response%$'\n'*}"
+
+            if [[ "$curl_exit_code" -eq 0 && "$status_code" == "200" ]]; then
+                echo "Status       : OK"
+                # Test if jq available : https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#usage
+                if command -v jq >/dev/null 2>&1; then
+                    echo "$body" | jq
+                # Test python way according to doc
+                elif python -m json.tool --help >/dev/null 2>&1; then
+                    echo "$body" | python -m json.tool
+                # Else print raw response
+                else
+                    echo "Neither jq or python json.tool installed. Printing raw response"
+                    echo "$body"
+                fi
+                break
+            fi
+            # Retry HTTP 429 using exponential backoff.
+            if [[ "$curl_exit_code" -eq 0 && "$status_code" == "429" ]]; then
+                retry_count=$((retry_count + 1))
+                # Delay sequence: 2, 4, 8, 16, 32, 60, 60...
+                delay=$((2 ** retry_count))
+                if (( delay > 60 )); then
+                    delay=60
+                fi
+                echo "WARNING: HTTP 429 - retry #${retry_count} - waiting ${delay}s"
+                sleep "$delay"
+                continue
+            fi
+            # Every other error is considered a failure.
+            if [[ "$curl_exit_code" -ne 0 ]]; then
+                echo "ERROR: curl failed (exit code ${curl_exit_code}) for ${uri}"
+            else
+                echo "ERROR: IMDS request failed with HTTP status ${status_code}"
+            fi
+            break
+        done
+    done
+}
+
+test_imds_endpoint "/metadata/attested/document" "${ATTESTED_API_VERSIONS[@]}"
+test_imds_endpoint "/metadata/instance" "${INSTANCE_API_VERSIONS[@]}"
+test_imds_endpoint "/metadata/loadbalancer" "${LOADBALANCER_API_VERSIONS[@]}"
+test_imds_endpoint "/metadata/scheduledevents" "${SCHEDULED_API_VERSIONS[@]}"
