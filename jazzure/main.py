@@ -1,15 +1,35 @@
 import argparse
 import asyncio
+import importlib
+import pkgutil
 import time
 from pathlib import Path
 
 from R2Log import logger, console
 
+import jazzure
 from jazzure.az_cli.azcli import AzCLI, AzureCliCrawler
 from jazzure.config.ToolConfig import __version__
 from jazzure.utils import print_banner, set_logger, print_elapsed_time
 
-from jazzure.imds.imds import register_parser
+def discover_commands(subparsers):
+    """
+        Recursively discover and register "subparsers" inside jazzure sub-packages.
+    """
+    for module_info in pkgutil.walk_packages(jazzure.__path__, prefix=f"{jazzure.__name__}."):
+        module_name = module_info.name
+        # Avoid importing the main entry point
+        if module_name in {"jazzure.main", "jazzure.__main__"}:
+            continue
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Look for a register_parser function implemented in this module
+        register_parser = getattr(module, "register_parser", None)
+        if callable(register_parser):
+            if register_parser.__module__ != module.__name__:
+                continue
+            logger.debug(f"Registering command from {module_name}")
+            register_parser(subparsers)
 
 def parse_args() -> argparse.Namespace:
 
@@ -23,8 +43,8 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description='Azure recon', parents=[pre_parser]) #little hack to print banner on help menu. Do not return str because if so, the rest of help message wont print...
 
-    subparsers = parser.add_subparsers(title="Imds subparser")
-    register_parser(subparsers)
+    subparsers = parser.add_subparsers( title="Submodules", dest="manager", required=True)
+    discover_commands(subparsers=subparsers)
 
     parser.add_argument('--log-file', action="store_true", help='Log inside file the current run')
     parser.add_argument("--version", action="store_true", help="Print tool version")
@@ -53,7 +73,6 @@ def entry_point():
     # logger.info(f"Groups :   {crawler.stats['groups']}")
     # logger.info(f"Commands : {crawler.stats['commands']}")
     # logger.info(f"Errors :   {crawler.stats['errors']}")
-    # logger.info(f"Output :    {Path(AzureCliCrawler.OUTPUT_FILE).absolute()}")
 
 
 

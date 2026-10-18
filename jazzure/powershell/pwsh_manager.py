@@ -9,6 +9,7 @@ import docker
 from docker.models.containers import Container
 from docker.models.images import Image
 from docker.client import DockerClient
+from rich.emoji import Emoji
 
 from jazzure.utils import binary_installed
 
@@ -39,16 +40,16 @@ class PowerShellContainer:
         if not binary_installed(binary_name="docker"):
             logger.warning(f"To use powershell feature, please install docker")
             return
-        self.client = self._create_docker_client()
+        self.client = self.create_docker_client()
         if self.client is None:
             return
 
-        self.image = self.get_docker_image(dokcer_client=self.client, image_name=self.DOCKER_IMAGE_NAME, tag=self.DOCKER_TAG)
+        self.image = self.get_docker_image(docker_client=self.client, image_name=self.DOCKER_IMAGE_NAME, tag=self.DOCKER_TAG)
         if self.image is None :
             self.image = self.build_container(docker_client=self.client, dockerfile_path=Path(__file__).parent, image_name=self.DOCKER_IMAGE_NAME, tag=self.DOCKER_TAG)
             if self.image is None:
                 raise RuntimeError(f"Unable to build docker image")
-        self.container = self._create_container()
+        self.container = self.create_container(docker_client=self.client, image_name=self.DOCKER_IMAGE_NAME, tag=self.DOCKER_TAG, runtime_name=self._docker_runtime_name)
         self._start_persistent_powershell()
 
     @staticmethod
@@ -70,16 +71,16 @@ class PowerShellContainer:
         return None
 
     @staticmethod
-    def get_docker_image(dokcer_client, image_name: str, tag: str) -> Union[None|Image]:
+    def get_docker_image(docker_client: DockerClient, image_name: str, tag: str) -> Union[None | Image]:
         try:
-            image = dokcer_client.images.get(name=f"{image_name}:{tag}")
+            image = docker_client.images.get(name=f"{image_name}:{tag}")
             return image
         except docker.errors.ImageNotFound:
             logger.warning("Docker image does not exist")
         return None
 
     @staticmethod
-    def build_container(docker_client, dockerfile_path: Union[str|Path], image_name: str, tag: str) -> Union[None|Image]:
+    def build_container(docker_client: DockerClient, dockerfile_path: Union[str|Path], image_name: str, tag: str) -> Union[None|Image]:
         """
             Handling container build based on Dockerfile
         """
@@ -100,7 +101,7 @@ class PowerShellContainer:
                     print(f"\nERROR: {chunk['error']}", flush=True)
                     raise RuntimeError(chunk["error"])
 
-            image = PowerShellContainer.get_docker_image(dokcer_client=docker_client, image_name=image_name, tag=tag)
+            image = PowerShellContainer.get_docker_image(docker_client=docker_client, image_name=image_name, tag=tag)
             if image is not None:
                 logger.success(f"Image build successfull !")
                 logger.info(f"Image ID: {image.id}")
@@ -110,20 +111,15 @@ class PowerShellContainer:
             logger.error(f"Unable to build container for unknown reason : \n{str(e)}")
         return None
 
-    def _create_container(self) -> Container:
+    @staticmethod
+    def create_container(docker_client: DockerClient, image_name: str, tag: str, runtime_name: str) -> Container:
         """
             Create a persistent PowerShell container.
             The container is kept alive so exec_run() can be used multiple times.
         """
-        logger.info(f"Creating PowerShell container '{self._docker_runtime_name}'")
+        logger.info(f"Creating PowerShell container '{runtime_name}'")
         try:
-            container = self.client.containers.run(
-                image=f"{self.DOCKER_IMAGE_NAME}:{self.DOCKER_TAG}",
-                command=["sleep", "infinity"],
-                name=self._docker_runtime_name,
-                detach=True,
-                remove=False,
-            )
+            container = docker_client.containers.run(image=f"{image_name}:{tag}", command=["sleep", "infinity"], name=runtime_name, detach=True, remove=False)
             logger.success(f"Container started: {container.id}")
             return container
         except docker.errors.APIError as e:
@@ -191,6 +187,7 @@ class PowerShellContainer:
 
         # Read output until marker
         output = bytearray()
+
         def read_output() -> None:
             while True:
                 line = process.stdout.readline()
@@ -258,6 +255,38 @@ class PowerShellContainer:
     def __enter__(self):
         return self
 
+
+
+def run(args):
+    """
+        Main entrance of the current package. Allow to have its own logic to run from main
+    """
+    if args.spawn_docker:
+        client = PowerShellContainer.create_docker_client()
+        if client is None:
+            logger.critical(f"Impossible to connect to docker API")
+            return
+        image = PowerShellContainer.get_docker_image(docker_client=client, image_name=PowerShellContainer.DOCKER_IMAGE_NAME, tag=PowerShellContainer.DOCKER_TAG)
+        if image is None:
+            image = PowerShellContainer.build_container(docker_client=client, dockerfile_path=Path(__file__).parent, image_name=PowerShellContainer.DOCKER_IMAGE_NAME, tag=PowerShellContainer.DOCKER_TAG)
+            if image is None:
+                raise RuntimeError(f"Unable to build docker image")
+        PowerShellContainer.create_container(docker_client=client, image_name=PowerShellContainer.DOCKER_IMAGE_NAME, tag=PowerShellContainer.DOCKER_TAG, runtime_name=args.docker_name)
+        logger.success(f"Happy hacking {Emoji('party_popper')}")
+        logger.info(f"Connect to container with : docker exec -it {args.docker_name} /bin/bash")
+        logger.info(f"Dont forget to import not loaded modules : \nImport-Module -Name AADInternals")
+
+def register_parser(subparsers):
+    parser = subparsers.add_parser("docker", help="Docker powershell manager")
+
+    docker_manager_group = parser.add_argument_group('Get API versions for all endpoints')
+    docker_manager_group.add_argument("--spawn-docker", action="store_true", help=f"Will spawn a docker with all libraries embedded")
+    docker_manager_group.add_argument("--docker-name", required=True, help=f"Custom runtime docker name to set")
+
+    # will allow to execute 'run' function from main.py and all subpackages can use same logic to expose its own args if needed
+    parser.set_defaults(func=run)
+
+    return parser
 
 if __name__ == "__main__":
 

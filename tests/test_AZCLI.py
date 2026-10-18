@@ -1,4 +1,5 @@
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 from jazzure.az_cli import azcli
 
@@ -9,6 +10,24 @@ class TestAZCLI(TestCase):
 
         online_version = azcli.AzCLI.retrieve_online_versions()
         self.assertTrue(set(actual_versions).issubset(set(online_version)))
+
+    def test_retrieve_local_version(self):
+        mocked_stdout = """azure-cli                         2.91.0
+
+core                              2.91.0
+telemetry                          1.1.0
+
+Extensions:
+dev-spaces                         1.0.6
+
+Dependencies:
+msal                              1.39.0
+azure-mgmt-resource               24.0.0
+"""
+        with patch("jazzure.az_cli.azcli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout=mocked_stdout, stderr="", returncode=0)
+            local_version = azcli.AzCLI.retrieve_local_version()
+        self.assertEqual(local_version, "2.91.0")
 
 class TestAzureCliCrawler(TestCase):
 

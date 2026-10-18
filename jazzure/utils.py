@@ -34,6 +34,12 @@ def binary_installed(binary_name: str) -> bool:
     path = shutil.which(binary_name)
     return True if path is not None else False
 
+def add_suffix_to_filename(path: Path, custom: str) -> Path:
+    """
+        Allow to prepend a suffix to filename. Example : toto.json becomes toto_custom.json
+    """
+    return path.with_name(f"{path.stem}{custom}{path.suffix}")
+
 def print_elapsed_time(start_time, format: str = "seconds") -> None:
     end = time.time()
     if format == "seconds":

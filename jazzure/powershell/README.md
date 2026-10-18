@@ -1,15 +1,20 @@
 # General information
 
-I was performing some HTB cloud labs and (unfortunately), powershell is kind of needed when performing Microsoft security assessment.  
+I was performing some HTB cloud labs and (unfortunately), PowerShell is kind of needed when performing Microsoft security assessment.  
 This module answer this problem by managing a Docker image with .NET8 and some necessary PowerShell modules.  
   
-> Side note : inside exegol there is already a powershell console, but running in .NET7 and some features were not available 🥲
+> Side note : inside exegol there is already a PowerShell console, but running in .NET7 and some features were not available 🥲
 That's why I created this python docker manager. Also as it build and spawn a docker, you have to run it on your host (bye bye dind)
 
 # Technical information
 
 Python code that manages docker installation and running commands is here : `jazzure/powershell/pwsh_manager.py`  
 The Dockerfile it manages : `jazzure/powershell/Dockerfile`
+
+You can spawn a standalone container with all dependencies if you want by running : 
+```bash
+python jazzure.py docker --spawn-docker --docker-name my-custom-name
+```
 
 ## Installed modules
 
@@ -22,7 +27,7 @@ At this point the following PowerShell modules are installed :
 
 ## Powershell session handler
 
-Little tricky thing was not about building and spawning docker but to create a handler that will keep a "context" each time you run powershell command.  
+Little tricky thing was not about building and spawning docker but to create a handler that will keep a "context" each time you run PowerShell command.  
 Indeed when you connect to container and launch a pwsh, each call will create a new session, and therefore you will lose your connection session to Entra or Azure... 😰  
 So I manage to create a function `PowerShellContainer._start_persistent_powershell()` that will handle that for you.  
 Also the container stays alive while your using it, and remove running instance only when you finish 🎉  

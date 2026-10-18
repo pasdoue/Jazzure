@@ -36,7 +36,7 @@ As there are several ways to connect to those environments, here is a "little" s
 | **Interactive / Browser**                    | User                               |                        Yes | `az`, PowerShell, Graph         |
 | **Device Code**                              | User                               | Using web browser first    | `az`, Graph PowerShell, MSAL    |
 | **Authorization Code + PKCE**                | User                               |                        Yes | Web/Desktop/SPA                 |
-| **Access Token existant**                    | User ou App                        |                        No  | `curl`, REST, PowerShell        |
+| **Access Token existant**                    | User or App                        |                        No  | `curl`, REST, PowerShell        |
 | **Client Secret**                            | Application                        |                        No  | `curl`, MSAL, scripts           |
 | **Certificate**                              | Application                        |                        No  | PowerShell, MSAL, automation    |
 | **Managed Identity**                         | Azure Resource / Service Principal |                        No  | VM, App Service, Function, etc. |
@@ -62,10 +62,17 @@ More details here : [Azure CLI details](jazzure/az_cli/README.md)
 As a lot of commands & Entra connections are well handled in PowerShell and not in python SDK or even Azure CLI, it was necessary to support PowerShell ecosystem.  
 More details over here : [PowerShell details](jazzure/powershell/README.md)  
 
+```bash
+python jazzure.py docker --help
+```
+
 #### IMDS / Managed Identity
 
 This section is about when you're logged into a VM, so you can interrogate IMDS on `http://169.254.169.254/metadata`.    
 More details over here : [IMDS details](jazzure/imds/README.md)
 
+```bash
+python jazzure.py imds --help
+```
 
 

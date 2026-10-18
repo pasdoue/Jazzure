@@ -1,17 +1,50 @@
 import asyncio
 import json
+import subprocess
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Any
 
 import requests
 from bs4 import BeautifulSoup
 from R2Log import logger
 from strip_ansi import strip_ansi
 
+from jazzure.utils import binary_installed, add_suffix_to_filename
 
 class AzCLI:
 
     RELEASE_NOTES_URL = "https://learn.microsoft.com/en-us/cli/azure/release-notes-azure-cli?view=azure-cli-latest"
+
+    @staticmethod
+    def run(*args: str) -> Any:
+        cmd = ["az", *args, "--output", "json"]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            if "Insufficient privileges" in result.stderr:
+                logger.error(f"Insufficient privileges to perform : \n{' '.join(cmd)}")
+            return None
+            #raise RuntimeError(f"Azure CLI command failed:\n$ {' '.join(cmd)}\n\n{result.stderr}")
+            return result.returncode, result.stderr
+        if not result.stdout.strip():
+            return None
+        return json.loads(result.stdout)
+
+    @staticmethod
+    def retrieve_local_version() -> Union[None|str]:
+        res = None
+        result = subprocess.run(["az", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            if "Insufficient privileges" in result.stderr:
+                logger.error(f"Insufficient privileges to perform : az version")
+            return res
+        if not result.stdout.strip():
+            return res
+        for line in result.stdout.splitlines():
+            if line.startswith("azure-cli"):
+                single_sep_line = " ".join(line.split()).strip()
+                res = single_sep_line.split()[-1]
+                break
+        return res
 
     @classmethod
     def retrieve_online_versions(cls):
@@ -27,6 +60,9 @@ class AzCLI:
         logger.debug(f"Found all versions of az CLI : {','.join(res)}")
         return res
 
+    @staticmethod
+    def is_installed() -> bool:
+        return binary_installed("az")
 
 class AzureCliCrawler:
 
@@ -34,6 +70,7 @@ class AzureCliCrawler:
 
     def __init__(self):
         self.commands = {}
+        self.version = AzCLI.retrieve_local_version()
         self.visited = set()
         self.stats = { "groups": 0, "commands": 0, "errors": 0 }
 
@@ -293,7 +330,8 @@ class AzureCliCrawler:
         await asyncio.gather(*workers)
 
 
-    def save(self, filename: Path) -> None:
+    def save(self, filename: Path = OUTPUT_FILE) -> None:
+        final_filename = add_suffix_to_filename(path=filename, custom=f"_{self.version}")
         output = {
             "metadata": {
                 "command_count": self.stats["commands"],
@@ -302,14 +340,7 @@ class AzureCliCrawler:
             },
             "commands": self.commands
         }
-        with filename.open("w", encoding="utf-8") as f:
+        with final_filename.open("w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
-
-
-
-
-
-
-
-
+        logger.success(f"File saved inside : {final_filename}")
 
