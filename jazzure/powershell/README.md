@@ -13,7 +13,7 @@ The Dockerfile it manages : `jazzure/powershell/Dockerfile`
 
 You can spawn a standalone container with all dependencies if you want by running : 
 ```bash
-python jazzure.py docker --spawn-docker --docker-name my-custom-name
+jazzure docker --spawn-docker --docker-name my-custom-name
 ```
 
 ## Installed modules

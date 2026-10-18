@@ -7,7 +7,7 @@ Those endpoints cannot be interrogated from outside the VM and prevent (normally
 
 Retrieve all available versions for all IMDS endpoints (except for /identity)
 ```bash
-python jazzure.py imds --get-endpoints-versions
+jazzure imds --get-endpoints-versions
 [*] Collecting all IMDS endpoints versions
 [+] All versions retrieved
 [*] Available versions for attested : ['2018-20-01', '2018-10-01', '2019-04-30', '2019-11-01', '2020-09-01']
@@ -19,7 +19,7 @@ python jazzure.py imds --get-endpoints-versions
 
 Generate a powershell script to retrieve all IMDS data
 ```bash
-python jazzure.py imds --gen-script --vm-os windows
+jazzure imds --gen-script --vm-os windows
 [*] Collecting all IMDS endpoints versions
 [+] All versions retrieved
 [*] You will be prompted to chose a version for all IMDS endpoints. 'all' & 'latest' are accepted too

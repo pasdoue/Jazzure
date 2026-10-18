@@ -1,14 +1,15 @@
 ## General
 
 This tool is built to facilitate Azure/Entra environment discovery.  
-The philosophy of the tool is same as [Jawsome](https://github.com/pasdoue/Jawsome) (developped to brute force IAM permissions in AWS)    
+The philosophy of the tool is same as [Jawsome](https://github.com/pasdoue/Jawsome) (developed to brute force IAM permissions in AWS)    
 But due to complexity of Microsoft, this project is more complex to answer multiple problems and contains multiple submodules that works together.  
 
 ## Installation
 
 ### Pypi
 
-Perform git clone for now... I will release first package on Pypi when the tool will be "really" functional 😉  
+Some features are under development and are available by cloning project.  
+For features that are ready to be used you can perform pipx install 😉  
 
 ```bash
 pipx install jazzure
@@ -63,7 +64,7 @@ As a lot of commands & Entra connections are well handled in PowerShell and not 
 More details over here : [PowerShell details](jazzure/powershell/README.md)  
 
 ```bash
-python jazzure.py docker --help
+jazzure docker --help
 ```
 
 #### IMDS / Managed Identity
@@ -72,7 +73,7 @@ This section is about when you're logged into a VM, so you can interrogate IMDS 
 More details over here : [IMDS details](jazzure/imds/README.md)
 
 ```bash
-python jazzure.py imds --help
+jazzure imds --help
 ```
 
 
