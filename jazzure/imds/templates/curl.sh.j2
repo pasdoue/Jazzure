@@ -15,6 +15,7 @@ function test_imds_endpoint() {
     retry_count=0
 
     for api_version in "$@"; do
+        api_version="${api_version//,}" #remove trailing comma
         uri="${IMDS_BASE_URL}${endpoint}?api-version=${api_version}"
 
         echo ""
